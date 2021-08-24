@@ -18,8 +18,8 @@ int main(int argc, char **argv) {
   read_file(caf.raw_file, argv[1]);
   caf.meatdata();
   caf.files();
-  caf.dump_to_file(argv[1]);
-
+  std::string output_path = argv[1];
+  caf.dump_to_file(output_path.substr(0, output_path.size() - 4));
 
   return 0;
 }

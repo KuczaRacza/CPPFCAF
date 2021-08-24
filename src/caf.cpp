@@ -36,7 +36,7 @@ auto CafParser::meatdata() -> void {
   // alocates  memory to avoid many small alocations and realloactions
   caf_files.reserve(filenumber);
 
-  std::string curr_path = "./";
+  std::string curr_path = "";
   // Parse  archive structure
   for (u64 i = 0; i < filenumber; i++) {
     // entery is file
@@ -94,7 +94,7 @@ auto CafParser::read_file(ArchiveFile &caf_file) -> void {
   // parsed number must be converted to little endian.  File  format uses big
   // endian
   caf_file.file_size = u64_be_to_le(
-      Z64strToNum(caf_file.str.substr(rw_size, size_endl - rw_size)));
+      Z64strToNum(caf_file.str.substr(rw_size, size_endl - rw_size)).a);
   // reseve a lot of space  to avoid  reallocations
   caf_file.content.reserve(caf_file.file_size / 8 + 1);
   u64 index = size_endl + 1;
@@ -103,8 +103,10 @@ auto CafParser::read_file(ArchiveFile &caf_file) -> void {
     u64 endl = caf_file.str.find_first_of('\n', index);
     std::string_view line = caf_file.str.substr(index, endl - index);
     // parse number and puts into vector
-    u64 line_value = Z64strToNum(line);
-    caf_file.content.push_back(line_value);
+    u64_2 line_value = Z64strToNum(line);
+    for (u32 i = 0; i < line_value.b; i++) {
+      caf_file.content.push_back(line_value.a);
+    }
     // ends  if read more bytes than filesize or there is no more lines
     if (endl == std::string_view::npos ||
         caf_file.content.size() * 8 >= caf_file.file_size) [[unlikely]] {
@@ -116,11 +118,12 @@ auto CafParser::read_file(ArchiveFile &caf_file) -> void {
 auto CafParser::dump_to_file(std::string dst) -> void {
   // first create directories to recrate archive structure
   // then  writes down content of vector to files
+  std::filesystem::create_directories(dst);
   for (auto &drc : caf_directories) {
-    std::filesystem::create_directories(dst + drc);
+    std::filesystem::create_directories(dst + "/" + drc);
   }
   for (auto &flc : caf_files) {
-    std::ofstream out_file(dst + (std::string)flc.path,
+    std::ofstream out_file(dst + "/" + (std::string)flc.path,
                            std::ios::binary | std::ios::out);
     out_file.write((char *)flc.content.data(), flc.file_size);
     out_file.close();
@@ -345,7 +348,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
   }
   return number;
 }
-auto CafParser::Z64strToNum(std::string_view str) -> u64 {
+auto CafParser::Z64strToNumBitshift(std::string_view str) -> u64 {
   // parse z64number
   // splits string
   // parse evry polish number
@@ -372,6 +375,21 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64 {
   u8 num = strToNum(str.substr(index, str.size() - index + 2));
   outnumber = (outnumber >> 8) | ((u64)num << 56);
   return outnumber;
+}
+auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
+  u64_2 ret;
+  u64 reapat_separator = str.find_first_of("X");
+  if (reapat_separator == std::string_view::npos) [[likely]] {
+    ret.b = 1;
+    ret.a = Z64strToNumBitshift(str);
+  } else {
+    std::string_view byte_str = str.substr(0, reapat_separator);
+    std::string_view repeat_str =
+        str.substr(reapat_separator + 2, str.size() - reapat_separator - 1);
+    ret.a = Z64strToNumBitshift(byte_str);
+    ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
+  }
+  return ret;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {
   // changes endian

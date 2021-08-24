@@ -23,7 +23,8 @@ public:
   std::vector<ArchiveFile> caf_files;
   std::vector<std::string> caf_directories;
   static auto strToNum(std::string_view) -> u32;
-  static auto Z64strToNum(std::string_view) -> u64;
+  static auto Z64strToNum(std::string_view) -> u64_2;
+  static auto Z64strToNumBitshift(std::string_view) -> u64;
   static auto u64_be_to_le(u64 be) -> u64;
   u64 header_end;
 };

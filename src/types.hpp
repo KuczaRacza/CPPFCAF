@@ -16,5 +16,9 @@ public:
   u8 *ptr;
   u64 size;
 };
+struct u64_2 {
+  u64 a;
+  u64 b;
+};
 void dstoffsetcopy(void *dst, void *src, u32 *offset, u32 size);
 void srcoffsetcopy(void *dst, void *src, u32 *offset, u32 size);

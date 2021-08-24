@@ -13,32 +13,45 @@ ArchiveFile::~ArchiveFile() {}
 CafParser::CafParser() {}
 CafParser::~CafParser() {}
 auto CafParser::meatdata() -> void {
+  // size of  strings
   constexpr u64 fw_size = sizeof("PLIK") - 1;
   constexpr u64 dw_size = sizeof("KATALOG") - 1;
   constexpr u64 vw_size = sizeof("CAF") - 1;
   constexpr u64 iw_size = sizeof("INDEKS") - 1;
   std::string_view file_data = raw_file;
+  // everthing behind index is arledy parsed
   u64 index = 0;
   u64 filenumber = 0;
   // finds number of files
   {
+    // Finds string "indeks"
     u64 in_pos = file_data.find_first_of("INDEKS");
     u64 endl_pos = file_data.find_first_of('\n', in_pos);
+    // finds number written in polish
     u64 len = endl_pos - in_pos - iw_size - 1;
+    // parse  words to number
     filenumber = strToNum(file_data.substr(in_pos + iw_size + 1, len));
     index = endl_pos + 1;
   }
-
+  // alocates  memory to avoid many small alocations and realloactions
   caf_files.reserve(filenumber);
+
   std::string curr_path = "./";
+  // Parse  archive structure
   for (u64 i = 0; i < filenumber; i++) {
+    // entery is file
     if (file_data.substr(index, fw_size) == "PLIK") {
+      // crate emty file object sets name and  path and goes to next line
       u64 s_pos = index + fw_size + 1;
       u64 e_pos = file_data.find_first_of('\n', s_pos);
       index = e_pos + 1;
       caf_files.emplace_back(curr_path + raw_file.substr(s_pos, e_pos - s_pos));
 
     } else {
+      // entery is directory
+      // changes path  where next parsed files will be written
+      // adds directory to list with directories to create
+      // goes to next  line
       u64 s_pos = index + dw_size + 1;
       u64 e_pos = file_data.find_first_of('\n', s_pos);
       curr_path = "./" + raw_file.substr(s_pos, e_pos - s_pos) + "/";
@@ -46,6 +59,7 @@ auto CafParser::meatdata() -> void {
       index = e_pos + 1;
     }
   }
+  // end of header makes  easier  to find first file
   header_end = index;
 }
 
@@ -55,12 +69,17 @@ auto CafParser::files() -> void {
   std::string_view file_content =
       file_data.substr(header_end, raw_file.size() - header_end);
   u32 index = 0;
+  // foreach file finds  entery "ROZMIAR"
+  // files  alway beings with word  "ROZMIAR"
   for (auto &f : caf_files) {
+    // finds end of file by finding next "ROZMIAR" or end of file
     u64 end = file_content.find_first_of("RO", index + rw_size) - 1;
     if (end == std::string_view::npos) [[unlikely]] {
       end = file_content.size() - 1;
     }
+    // sets string to parse  in file   object
     f.str = file_content.substr(index, end - index);
+    // parse  file
     read_file(f);
     index = end + 1;
   }
@@ -68,23 +87,35 @@ auto CafParser::files() -> void {
 auto CafParser::read_file(ArchiveFile &caf_file) -> void {
   constexpr u64 rw_size = sizeof("ROZMIAR ") - 1;
   u64 size_endl = caf_file.str.find_first_of('\n');
+  // parse size of file
+  // important! real size  of file is alwas bigger due to padding
+  // evry line  must have  number of bytes as multiply of 8
+  // so eg.  file_size is  25B but real size with padding is 32B
+  // parsed number must be converted to little endian.  File  format uses big
+  // endian
   caf_file.file_size = u64_be_to_le(
       Z64strToNum(caf_file.str.substr(rw_size, size_endl - rw_size)));
+  // reseve a lot of space  to avoid  reallocations
   caf_file.content.reserve(caf_file.file_size / 8 + 1);
   u64 index = size_endl + 1;
+  // reads  line by line
   while (true) {
     u64 endl = caf_file.str.find_first_of('\n', index);
     std::string_view line = caf_file.str.substr(index, endl - index);
+    // parse number and puts into vector
     u64 line_value = Z64strToNum(line);
     caf_file.content.push_back(line_value);
+    // ends  if read more bytes than filesize or there is no more lines
     if (endl == std::string_view::npos ||
-        caf_file.content.size() * 8 >= caf_file.file_size ) [[unlikely]] {
+        caf_file.content.size() * 8 >= caf_file.file_size) [[unlikely]] {
       break;
     }
     index = endl + 1;
   }
 }
 auto CafParser::dump_to_file(std::string dst) -> void {
+  // first create directories to recrate archive structure
+  // then  writes down content of vector to files
   for (auto &drc : caf_directories) {
     std::filesystem::create_directories(dst + drc);
   }
@@ -96,38 +127,46 @@ auto CafParser::dump_to_file(std::string dst) -> void {
   }
 }
 auto CafParser::strToNum(std::string_view s) -> u32 {
+  // parse polish words into numbers
+  // very fast
   u32 number = 0;
   u64 index = 0;
   u64 second_index = 0;
   std::string_view str;
+  // true if last word is beeing parsed
   bool parsed = false;
 
-  uint32_t whitespaces = 0;
+  u32 whitespaces = 0;
 
   while (true) {
-
+    // splits  polish numebr into single words  eg "sto dwa" into "sto" and
+    // "dwa"
     second_index = s.find(' ', index + 1);
 
     if (second_index == std::string::npos) [[unlikely]] {
+      // string has only one word
       if (whitespaces == 0) {
         str = s.substr(index, s.size() - index);
       } else {
-
+        // last word
         str = s.substr(index + 1, s.size() - index);
       }
 
       parsed = true;
     } else {
+      // first word
       if (whitespaces == 0) [[unlikely]] {
         str = s.substr(index, second_index - index);
       } else {
+        // evry next word
         str = s.substr(index + 1, second_index - index - 1);
       }
       whitespaces++;
     }
 
-    uint32_t length = str.length();
-
+    u32 length = str.length();
+    // first narrows down possible words using length
+    // next finds  the word by comparing one letter
     switch (length) {
     case 3:
       switch (str[0]) {
@@ -307,6 +346,10 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
   return number;
 }
 auto CafParser::Z64strToNum(std::string_view str) -> u64 {
+  // parse z64number
+  // splits string
+  // parse evry polish number
+  // does bitshifting
   u64 separators = 0;
   u64 separator_index = 0;
   while (true) {
@@ -331,6 +374,7 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64 {
   return outnumber;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {
+  // changes endian
   u64 le = 0;
   u8 *big = (u8 *)&be;
   for (u32 i = 0; i < 8; i += 1) {

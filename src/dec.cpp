@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
   if (decode) {
     caf.files();
     if (save) {
-      std::string output_path = argv[1];
+      std::string output_path = path;
       caf.dump_to_file(output_path.substr(0, output_path.size() - 4));
     }
   } else {

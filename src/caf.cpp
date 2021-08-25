@@ -386,37 +386,41 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   // if present splits string
   // and parse separetly
   u64_2 ret;
-  //cache lookup
-  //compares string size 
-  //and if match compare charachters
-  //jumps  3 characters forward bc in polish shotrest word for number have 3 characters
+  // cache lookup
+  // compares string size
+  // and if match compare charachters
+  // jumps  3 characters forward bc in polish shotrest word for number have 3
+  // characters
   for (u32 i = 0; i < last_line.size(); i++) {
-    if (last_line[(cache_miss + i) % last_line.size()].size() == str.size())
-        [[likely]] {
-      for (u32 i = 0; i < str.size(); i += 3) {
-        if (str[i] != last_line[(cache_miss + i) % last_line.size()][i]) {
-          continue;
+    if (last_line[(cache_miss + i) % last_line.size()].size() == str.size()) {
+      bool equal = true;
+      for (u32 j = 0; j < str.size(); j += 3) {
+        if (str[j] != last_line[(cache_miss + i) % last_line.size()][j]) {
+          equal = false;
+          break;
         }
       }
-      return last_value[(cache_miss + i) % last_line.size()];
+      if (equal) {
+        return last_value[(cache_miss + i) % last_line.size()];
+      }
     }
   }
   u64 reapat_separator;
-  //X mode 
-  //find is faster in bulk
-  //so druing initial parsing is determined if  
-  //X is prsent 
-  //if not present 
-  //looking for X is skipped
+  // X mode
+  // find is faster in bulk
+  // so druing initial parsing is determined if
+  // X is prsent
+  // if not present
+  // looking for X is skipped
   if (is_X_present) {
-    reapat_separator = str.find_first_of("X");
+    reapat_separator = str.find_first_of('X');
   } else {
     reapat_separator = std::string_view::npos;
   }
 
   if (reapat_separator == std::string_view::npos) [[likely]] {
-	  //b - number of repeats
-	  //a- byte
+    // b - number of repeats
+    // a- byte
     ret.b = 1;
     ret.a = Z64strToNumBitshift(str);
   } else {
@@ -429,6 +433,7 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
 
   last_line[cache_miss % last_line.size()] = str;
   last_value[cache_miss % last_line.size()] = ret;
+  cache_miss++;
   return ret;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {

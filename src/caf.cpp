@@ -30,8 +30,8 @@ auto CafParser::meatdata() -> void {
     // finds number written in polish
     u64 len = endl_pos - in_pos - iw_size - 1;
     // parse  words to number
-    last_line = file_data.substr(in_pos + iw_size + 1, len);
-    filenumber = strToNum(last_line);
+    last_line.fill(file_data.substr(in_pos + iw_size + 1, len));
+    filenumber = strToNum(last_line[0]);
     index = endl_pos + 1;
   }
   // alocates  memory to avoid many small alocations and realloactions
@@ -69,6 +69,9 @@ auto CafParser::files() -> void {
   std::string_view file_data = raw_file;
   std::string_view file_content =
       file_data.substr(header_end, raw_file.size() - header_end);
+  if (file_content.find_first_of('X') == std::string_view::npos) {
+	  is_X_present = false;
+  }
   u32 index = 0;
   // foreach file finds  entery "ROZMIAR"
   // files  alway beings with word  "ROZMIAR"
@@ -379,29 +382,37 @@ auto CafParser::Z64strToNumBitshift(std::string_view str) -> u64 {
 }
 auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   u64_2 ret;
-  if (last_line.size() != str.size()) [[likely]] {
-  notsame:
-    u64 reapat_separator = str.find_first_of("X");
-    if (reapat_separator == std::string_view::npos) [[likely]] {
-      ret.b = 1;
-      ret.a = Z64strToNumBitshift(str);
-    } else {
-      std::string_view byte_str = str.substr(0, reapat_separator);
-      std::string_view repeat_str =
-          str.substr(reapat_separator + 2, str.size() - reapat_separator - 1);
-      ret.a = Z64strToNumBitshift(byte_str);
-      ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
-    }
-  } else {
-    for (u32 i = 0; i < str.size(); i += 3) {
-      if (str[i] != last_line[i]) {
-        goto notsame;
+  for (u32 i = 0; i < last_line.size(); i++) {
+    if (last_line[(cache_miss + i) % last_line.size()].size() == str.size())
+        [[likely]] {
+      for (u32 i = 0; i < str.size(); i += 3) {
+        if (str[i] != last_line[(cache_miss + i) % last_line.size()][i]) {
+          continue;
+        }
       }
+      return last_value[(cache_miss + i) % last_line.size()];
     }
-    return last_value;
   }
-  last_line = str;
-  last_value = ret;
+  u64 reapat_separator;
+  if (is_X_present) {
+    reapat_separator = str.find_first_of("X");
+  } else {
+    reapat_separator = std::string_view::npos;
+  }
+
+  if (reapat_separator == std::string_view::npos) [[likely]] {
+    ret.b = 1;
+    ret.a = Z64strToNumBitshift(str);
+  } else {
+    std::string_view byte_str = str.substr(0, reapat_separator);
+    std::string_view repeat_str =
+        str.substr(reapat_separator + 2, str.size() - reapat_separator - 1);
+    ret.a = Z64strToNumBitshift(byte_str);
+    ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
+  }
+
+  last_line[cache_miss % last_line.size()] = str;
+  last_value[cache_miss % last_line.size()] = ret;
   return ret;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {

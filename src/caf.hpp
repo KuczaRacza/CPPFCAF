@@ -1,4 +1,5 @@
 #include "types.hpp"
+#include <array>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,8 +21,9 @@ public:
   auto read_file(ArchiveFile &caf_file) -> void;
   auto dump_to_file(std::string dst) -> void;
   std::string raw_file;
-  std::string_view last_line;
-  u64_2 last_value;
+  u64 cache_miss = 0;
+  std::array<std::string_view, 18> last_line;
+  std::array<u64_2, 18> last_value;
   std::vector<ArchiveFile> caf_files;
   std::vector<std::string> caf_directories;
   auto strToNum(std::string_view) -> u32;
@@ -29,4 +31,5 @@ public:
   auto Z64strToNumBitshift(std::string_view) -> u64;
   auto u64_be_to_le(u64 be) -> u64;
   u64 header_end;
+  bool is_X_present = true;
 };

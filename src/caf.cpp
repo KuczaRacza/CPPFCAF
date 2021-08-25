@@ -25,12 +25,13 @@ auto CafParser::meatdata() -> void {
   // finds number of files
   {
     // Finds string "indeks"
-    u64 in_pos = file_data.find_first_of("INDEKS");
+    u64 in_pos = file_data.find("INDEKS");
     u64 endl_pos = file_data.find_first_of('\n', in_pos);
     // finds number written in polish
     u64 len = endl_pos - in_pos - iw_size - 1;
     // parse  words to number
-    filenumber = strToNum(file_data.substr(in_pos + iw_size + 1, len));
+    last_line = file_data.substr(in_pos + iw_size + 1, len);
+    filenumber = strToNum(last_line);
     index = endl_pos + 1;
   }
   // alocates  memory to avoid many small alocations and realloactions
@@ -378,17 +379,29 @@ auto CafParser::Z64strToNumBitshift(std::string_view str) -> u64 {
 }
 auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   u64_2 ret;
-  u64 reapat_separator = str.find_first_of("X");
-  if (reapat_separator == std::string_view::npos) [[likely]] {
-    ret.b = 1;
-    ret.a = Z64strToNumBitshift(str);
+  if (last_line.size() != str.size()) [[likely]] {
+  notsame:
+    u64 reapat_separator = str.find_first_of("X");
+    if (reapat_separator == std::string_view::npos) [[likely]] {
+      ret.b = 1;
+      ret.a = Z64strToNumBitshift(str);
+    } else {
+      std::string_view byte_str = str.substr(0, reapat_separator);
+      std::string_view repeat_str =
+          str.substr(reapat_separator + 2, str.size() - reapat_separator - 1);
+      ret.a = Z64strToNumBitshift(byte_str);
+      ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
+    }
   } else {
-    std::string_view byte_str = str.substr(0, reapat_separator);
-    std::string_view repeat_str =
-        str.substr(reapat_separator + 2, str.size() - reapat_separator - 1);
-    ret.a = Z64strToNumBitshift(byte_str);
-    ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
+    for (u32 i = 0; i < str.size(); i += 3) {
+      if (str[i] != last_line[i]) {
+        goto notsame;
+      }
+    }
+    return last_value;
   }
+  last_line = str;
+  last_value = ret;
   return ret;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {

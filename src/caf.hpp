@@ -20,11 +20,13 @@ public:
   auto read_file(ArchiveFile &caf_file) -> void;
   auto dump_to_file(std::string dst) -> void;
   std::string raw_file;
+  std::string_view last_line;
+  u64_2 last_value;
   std::vector<ArchiveFile> caf_files;
   std::vector<std::string> caf_directories;
-  static auto strToNum(std::string_view) -> u32;
-  static auto Z64strToNum(std::string_view) -> u64_2;
-  static auto Z64strToNumBitshift(std::string_view) -> u64;
-  static auto u64_be_to_le(u64 be) -> u64;
+  auto strToNum(std::string_view) -> u32;
+  auto Z64strToNum(std::string_view) -> u64_2;
+  auto Z64strToNumBitshift(std::string_view) -> u64;
+  auto u64_be_to_le(u64 be) -> u64;
   u64 header_end;
 };

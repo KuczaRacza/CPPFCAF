@@ -1,5 +1,6 @@
 #include "caf.hpp"
 #include "types.hpp"
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <stdio.h>
@@ -15,6 +16,10 @@ auto read_file(std::string &file, char *path) -> void {
 }
 int main(int argc, char **argv) {
   CafParser caf;
+  const std::string help = "Usage ./dec -i archive.caf";
+  if (argc == 1) {
+    printf("%s", help.c_str());
+  }
   read_file(caf.raw_file, argv[1]);
   caf.meatdata();
   caf.files();

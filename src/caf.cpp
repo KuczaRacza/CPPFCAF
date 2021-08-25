@@ -70,7 +70,7 @@ auto CafParser::files() -> void {
   std::string_view file_content =
       file_data.substr(header_end, raw_file.size() - header_end);
   if (file_content.find_first_of('X') == std::string_view::npos) {
-	  is_X_present = false;
+    is_X_present = false;
   }
   u32 index = 0;
   // foreach file finds  entery "ROZMIAR"
@@ -381,7 +381,15 @@ auto CafParser::Z64strToNumBitshift(std::string_view str) -> u64 {
   return outnumber;
 }
 auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
+  // parse lines
+  // looks for X oprator
+  // if present splits string
+  // and parse separetly
   u64_2 ret;
+  //cache lookup
+  //compares string size 
+  //and if match compare charachters
+  //jumps  3 characters forward bc in polish shotrest word for number have 3 characters
   for (u32 i = 0; i < last_line.size(); i++) {
     if (last_line[(cache_miss + i) % last_line.size()].size() == str.size())
         [[likely]] {
@@ -394,6 +402,12 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
     }
   }
   u64 reapat_separator;
+  //X mode 
+  //find is faster in bulk
+  //so druing initial parsing is determined if  
+  //X is prsent 
+  //if not present 
+  //looking for X is skipped
   if (is_X_present) {
     reapat_separator = str.find_first_of("X");
   } else {
@@ -401,6 +415,8 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   }
 
   if (reapat_separator == std::string_view::npos) [[likely]] {
+	  //b - number of repeats
+	  //a- byte
     ret.b = 1;
     ret.a = Z64strToNumBitshift(str);
   } else {

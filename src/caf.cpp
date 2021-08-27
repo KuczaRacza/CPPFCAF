@@ -1,6 +1,9 @@
+#define NDEBUG
+
 #include "caf.hpp"
 #include "types.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -8,6 +11,7 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+
 ArchiveFile::ArchiveFile(std::string path) { this->path = std::move(path); }
 ArchiveFile::~ArchiveFile() {}
 CafParser::CafParser() {}
@@ -30,8 +34,7 @@ auto CafParser::meatdata() -> void {
     // finds number written in polish
     u64 len = endl_pos - in_pos - iw_size - 1;
     // parse  words to number
-    last_line.fill(file_data.substr(in_pos + iw_size + 1, len));
-    filenumber = strToNum(last_line[0]);
+    filenumber = strToNum(file_data.substr(in_pos + iw_size + 1, len));
     index = endl_pos + 1;
   }
   // alocates  memory to avoid many small alocations and realloactions
@@ -69,23 +72,16 @@ auto CafParser::files() -> void {
   std::string_view file_data = raw_file;
   std::string_view file_content =
       file_data.substr(header_end, raw_file.size() - header_end);
-  if (file_content.find_first_of('X') == std::string_view::npos) {
-    is_X_present = false;
-  }
   u32 index = 0;
   // foreach file finds  entery "ROZMIAR"
   // files  alway beings with word  "ROZMIAR"
   for (auto &f : caf_files) {
     // finds end of file by finding next "ROZMIAR" or end of file
-    u64 end = file_content.find_first_of("RO", index + rw_size) - 1;
-    if (end == std::string_view::npos) [[unlikely]] {
-      end = file_content.size() - 1;
-    }
     // sets string to parse  in file   object
-    f.str = file_content.substr(index, end - index);
+    f.str = file_content.substr(index);
     // parse  file
     read_file(f);
-    index = end + 1;
+    index = last_file_index;
   }
 }
 auto CafParser::read_file(ArchiveFile &caf_file) -> void {
@@ -112,12 +108,14 @@ auto CafParser::read_file(ArchiveFile &caf_file) -> void {
       caf_file.content.push_back(line_value.a);
     }
     // ends  if read more bytes than filesize or there is no more lines
-    if (endl == std::string_view::npos ||
-        caf_file.content.size() * 8 >= caf_file.file_size) [[unlikely]] {
+    if (caf_file.content.size() * 8 >= caf_file.file_size) [[unlikely]] {
       break;
+      index = endl + 1;
     }
     index = endl + 1;
   }
+
+  last_file_index += caf_file.str.find_first_of('\n', index) + 1;
 }
 auto CafParser::dump_to_file(std::string dst) -> void {
   // first create directories to recrate archive structure
@@ -144,11 +142,16 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
   bool parsed = false;
 
   u32 whitespaces = 0;
-
+  u32 jump = 0;
   while (true) {
     // splits  polish numebr into single words  eg "sto dwa" into "sto" and
     // "dwa"
-    second_index = s.find(' ', index + 1);
+
+    if (index + jump <= s.size()) {
+      second_index = s.find(' ', index + jump);
+    } else {
+      second_index = s.find(' ', index + 1);
+    }
 
     if (second_index == std::string::npos) [[unlikely]] {
       // string has only one word
@@ -178,12 +181,14 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
     case 3:
       switch (str[0]) {
       case 'd':
+
         number += 2;
         break;
       default:
         number += 100;
         break;
       }
+      jump = 3;
       break;
     case 4:
       switch (str[0]) {
@@ -193,6 +198,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 3;
         break;
       }
+      jump = 4;
       break;
     case 5:
       switch (str[0]) {
@@ -203,7 +209,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 8;
         break;
       }
-
+      jump = 5;
       break;
 
     case 6:
@@ -217,37 +223,15 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
       default:
         number += 7;
       }
-
+      jump = 6;
       break;
     case 7:
-      switch (str[2]) {
-      case 'e':
-        number += 6;
-        break;
-      case 'z':
-        number += 300;
-        break;
-      }
-      break;
-    case 8:
-      number += 800;
+      number += 6;
+      jump = 7;
       break;
     case 9:
-      switch (str[0]) {
-      case 'd':
-        number += 200;
-        break;
-      case 'c':
-        break;
-        number += 400;
-        break;
-      case 'p':
-        number += 500;
-        break;
-      default:
-        number += 700;
-        break;
-      }
+      jump = 9;
+      number += 200;
       break;
     case 10:
       switch (str[4]) {
@@ -257,14 +241,11 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
       case 'w':
         number += 9;
         break;
-      case 'a':
+      default:
         number += 12;
         break;
-      default:
-        number += 600;
-        break;
       }
-
+      jump = 10;
       break;
     case 11:
       switch (str[0]) {
@@ -278,6 +259,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 16;
         break;
       }
+      jump = 11;
       break;
 
     case 12:
@@ -298,6 +280,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 15;
         break;
       }
+      jump = 12;
       break;
 
     case 13:
@@ -306,15 +289,15 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
       case 's':
         number += 17;
         break;
-      case 'c':
+      default:
         number += 40;
         break;
-      default:
-        number += 900;
       }
+      jump = 13;
       break;
     case 14:
       number += 80;
+      jump = 14;
       break;
     case 15:
       switch (str[0]) {
@@ -325,6 +308,7 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 70;
         break;
       }
+      jump = 15;
       break;
 
     case 16:
@@ -336,13 +320,15 @@ auto CafParser::strToNum(std::string_view s) -> u32 {
         number += 60;
         break;
       }
+      jump = 16;
       break;
 
     case 19:
       number += 90;
+      jump = 19;
       break;
     default:
-      std::cout << str << '\n';
+      jump = 2;
       break;
     }
     if (parsed) [[unlikely]] {
@@ -357,21 +343,14 @@ auto CafParser::Z64strToNumBitshift(std::string_view str) -> u64 {
   // splits string
   // parse evry polish number
   // does bitshifting
-  u64 separators = 0;
-  u64 separator_index = 0;
-  while (true) {
-    separator_index += 2;
-    separator_index = str.find_first_of('<', separator_index);
-    if (separator_index != std::string_view::npos) [[likely]] {
-      separators++;
-    } else {
-      break;
-    }
-  }
+
   u64 outnumber = 0;
   u64 index = 0;
-  for (u32 i = 0; i < separators; i++) {
-    u64 end_index = str.find_first_of('<', index);
+  for (u32 i = 0;; i++) {
+    u64 end_index = str.find_first_of('<', index + 3);
+    if (end_index == std::string_view::npos) [[unlikely]] {
+      break;
+    }
     u8 num = strToNum(str.substr(index, end_index - index));
     index = end_index + 2;
     outnumber = (outnumber >> 8) | ((u64)num << 56);
@@ -386,25 +365,7 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   // if present splits string
   // and parse separetly
   u64_2 ret;
-  // cache lookup
-  // compares string size
-  // and if match compare charachters
-  // jumps  3 characters forward bc in polish shotrest word for number have 3
-  // characters
-  for (u32 i = 0; i < last_line.size(); i++) {
-    if (last_line[(cache_miss + i) % last_line.size()].size() == str.size()) {
-      bool equal = true;
-      for (u32 j = 0; j < str.size(); j += 3) {
-        if (str[j] != last_line[(cache_miss + i) % last_line.size()][j]) {
-          equal = false;
-          break;
-        }
-      }
-      if (equal) {
-        return last_value[(cache_miss + i) % last_line.size()];
-      }
-    }
-  }
+
   u64 reapat_separator;
   // X mode
   // find is faster in bulk
@@ -412,12 +373,8 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
   // X is prsent
   // if not present
   // looking for X is skipped
-  if (is_X_present) {
-    reapat_separator = str.find_first_of('X');
-  } else {
-    reapat_separator = std::string_view::npos;
-  }
 
+  reapat_separator = str.find_first_of('X', 3);
   if (reapat_separator == std::string_view::npos) [[likely]] {
     // b - number of repeats
     // a- byte
@@ -431,9 +388,6 @@ auto CafParser::Z64strToNum(std::string_view str) -> u64_2 {
     ret.b = u64_be_to_le(Z64strToNumBitshift(repeat_str));
   }
 
-  last_line[cache_miss % last_line.size()] = str;
-  last_value[cache_miss % last_line.size()] = ret;
-  cache_miss++;
   return ret;
 }
 auto CafParser::u64_be_to_le(u64 be) -> u64 {

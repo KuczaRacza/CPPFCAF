@@ -1,3 +1,5 @@
+#define NDEBUG
+
 #include "caf.hpp"
 #include "types.hpp"
 #include <algorithm>
@@ -6,7 +8,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <string>
-auto read_file(std::string &file, char *path) -> void {
+auto read_file(std::string &file,const char *path) -> void {
   std::ifstream f;
   f.open(std::string(path), std::ios::binary | std::ios::in);
   if(!f.good()){
@@ -47,13 +49,13 @@ int main(int argc, char **argv) {
 		}
     }
   }
-  read_file(caf.raw_file, argv[1]);
+  read_file(caf.raw_file, path.c_str());
   caf.meatdata();
   if (decode) {
     caf.files();
     if (save) {
-      std::string output_path = path;
-      caf.dump_to_file(output_path.substr(0, output_path.size() - 4));
+      std::string output_path = ".";
+      caf.dump_to_file(output_path);
     }
   } else {
 	  for (auto &file : caf.caf_files) {

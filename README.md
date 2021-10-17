@@ -1,4 +1,4 @@
-# CPPFCAF - C Plus Plus Fastest COMES Archive Format
+# CPPFCAF - C Plus Plus the Fastest COMES Archive Format
 CAF dekoder. Proudly written in c++ and opimized for speed.
 
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
@@ -22,6 +22,5 @@ uncaffer.py by [Firstbober](https://github.com/Firstbober/)
 
 makes archive.caf directory with files in working directory
 ## CAF
-Format made  by [liquidev](https://github.com/liquidev).
-## Future
-Maybe if I will be bored, i will add  more features
+Standard (PL only) [caf](https://github.com/comes-group/standards/blob/master/polish/caf.md).
+# Made by KuczaRacza
